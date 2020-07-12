@@ -1,0 +1,20 @@
+[package]
+name = "advancedresearch-max_tree"
+version = "0.1.0"
+authors = ["Sven Nilsen <bvssvni@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+exclude = ["analysis/*"]
+description = "A utility maximizer library based on a maximum tree structure."
+keywords = ["utility", "programming", "maximum", "tree", "advancedresearch"]
+readme = "README.md"
+repository = "https://github.com/advancedresearch/max_tree.git"
+homepage = "https://github.com/advancedresearch/max_tree"
+
+[lib]
+name = "max_tree"
+
+[dependencies]
+
+[dev-dependencies]
+vecmath = "1.0.0"
