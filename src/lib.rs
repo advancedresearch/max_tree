@@ -126,7 +126,7 @@
 //! that do not have any children with equal maximum utility,
 //! one must pay careful attention to the semantics of achieving that goal.
 //!
-//! In the sense that a global maximum is rearched,
+//! In the sense that a global maximum is reached,
 //! it makes no sense to do so if e.g. the world ends and there nothing left to do.
 //!
 //! Reaching infinite utility in an infinitesimal of time does not
