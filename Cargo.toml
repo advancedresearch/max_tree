@@ -18,3 +18,4 @@ name = "max_tree"
 
 [dev-dependencies]
 vecmath = "1.0.0"
+advancedresearch-rigid_body = "0.1.0"
