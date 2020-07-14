@@ -72,42 +72,19 @@ pub struct Spaceship {
     pub mass: f64,
 }
 
-/// Creates a rotation matrix from attitude.
-///
-/// This matrix is column major.
-pub fn rot(att: Attitude) -> [[f64; 3]; 3] {
-    let ang = att.0;
-    let axis = att.1;
-    let cos = ang.cos();
-    let sin = ang.sin();
-    let inv_cos = 1.0 - cos;
-    [
-      [
-        cos + axis[0] * axis[0] * inv_cos,
-        axis[0] * axis[1] * inv_cos - axis[2] * sin,
-        axis[0] * axis[2] * inv_cos + axis[1] * sin,
-      ],
-      [
-        axis[1] * axis[0] * inv_cos + axis[2] * sin,
-        cos + axis[1] * axis[1] * inv_cos,
-        axis[1] * axis[2] * inv_cos - axis[0] * sin,
-      ],
-      [
-        axis[2] * axis[0] * inv_cos - axis[1] * sin,
-        axis[2] * axis[1] * inv_cos + axis[0] * sin,
-        cos + axis[2] * axis[2] * inv_cos,
-      ],
-    ]
-}
-
 /// Solves the analogue of `s' = s + v * t` for attitude.
 pub fn angular(a: Attitude, b: Attitude, t: f64) -> Attitude {
+    use vecmath::vec3_scale as scale;
     use vecmath::vec3_dot as dot;
-    use vecmath::col_mat3_transform as transform;
+    use vecmath::vec3_cross as cross;
+    use vecmath::vec3_add as add;
 
     let angle = a.0 + dot(a.1, b.1) * b.0 * t;
-    let rot = rot((b.0 * t, b.1));
-    let axis = transform(rot, a.1);
+    let cos = a.0.cos();
+    let sin = a.0.sin();
+    // Use Rodigrues' rotation formula.
+    let axis = add(scale(a.1, cos), add(scale(cross(b.1, a.1), sin),
+               scale(b.1, dot(b.1, a.1) * (1.0 - cos))));
     (angle, axis)
 }
 
