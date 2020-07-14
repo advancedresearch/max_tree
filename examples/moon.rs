@@ -25,6 +25,7 @@ TODO:
 */
 
 use max_tree::prelude::*;
+use rigid_body::{RigidBody, Attitude};
 
 /// Stores information about a planet.
 pub struct Planet {
@@ -50,73 +51,21 @@ impl Planet {
     }
 }
 
-/// The type of attitude for orientation, torque and wrench.
-pub type Attitude = (f64, [f64; 3]);
-
 /// Used as node data.
 #[derive(Clone, Debug)]
 pub struct Spaceship {
-    /// Position.
-    pub pos: [f64; 3],
-    /// Velocity and direction.
-    pub vel: [f64; 3],
-    /// Linear acceleration.
-    pub acc: [f64; 3],
-    /// Orientation axis.
-    pub ori: Attitude,
-    /// Torque axis.
-    pub tor: Attitude,
-    /// Wrench axis.
-    pub wre: Attitude,
+    /// Rigid body physics.
+    pub rigid_body: RigidBody<f64>,
     /// Mass.
     pub mass: f64,
 }
 
-/// Solves the analogue of `s' = s + v * t` for attitude.
-pub fn angular(a: Attitude, b: Attitude, t: f64) -> Attitude {
-    use vecmath::vec3_scale as scale;
-    use vecmath::vec3_dot as dot;
-    use vecmath::vec3_cross as cross;
-    use vecmath::vec3_add as add;
-
-    let angle = a.0 + dot(a.1, b.1) * b.0 * t;
-    let cos = a.0.cos();
-    let sin = a.0.sin();
-    // Use Rodigrues' rotation formula.
-    let axis = add(scale(a.1, cos), add(scale(cross(b.1, a.1), sin),
-               scale(b.1, dot(b.1, a.1) * (1.0 - cos))));
-    (angle, axis)
-}
-
 impl Spaceship {
-    /// Updates spaceship's linear coordinates by moving it through time.
-    pub fn update_linear(&mut self, dt: f64) {
-        use vecmath::vec3_add as add;
-        use vecmath::vec3_scale as scale;
-
-        self.vel = add(self.vel, scale(self.acc, 0.5 * dt));
-        self.pos = add(self.pos, scale(self.vel, dt));
-        self.vel = add(self.vel, scale(self.acc, 0.5 * dt));
-    }
-
-    /// Updates spaceship's angular coordinates by moving it through time.
-    pub fn update_angular(&mut self, dt: f64) {
-        self.tor = angular(self.tor, self.wre, 0.5 * dt);
-        self.ori = angular(self.ori, self.tor, dt);
-        self.tor = angular(self.tor, self.wre, 0.5 * dt);
-    }
-
-    /// Update spaceship's coordinates by moving it through time.
-    pub fn update(&mut self, dt: f64) {
-        self.update_linear(dt);
-        self.update_angular(dt);
-    }
-
     /// Calculates the speed.
     pub fn speed(&self) -> f64 {
         use vecmath::vec3_len as len;
 
-        len(self.vel)
+        len(self.rigid_body.vel)
     }
 }
 
@@ -131,7 +80,7 @@ pub struct Space {
     /// The planet of destination.
     pub target_planet: usize,
     /// The target orientation.
-    pub target_orientation: Attitude,
+    pub target_orientation: Attitude<f64>,
 }
 
 /// Calculates the angle between vectors.
@@ -145,7 +94,7 @@ pub fn angle_between_vectors(a: [f64; 3], b: [f64; 3]) -> f64 {
 impl Space {
     /// Calculates utility for getting close to the surface of a planet.
     pub fn utility_get_close_to_surface(&self, planet: usize) -> f64 {
-        -self.planets[planet].distance(self.spaceship.pos).abs()
+        -self.planets[planet].distance(self.spaceship.rigid_body.pos).abs()
     }
 
     /// Calculates utility for stopping spaceship.
@@ -155,13 +104,13 @@ impl Space {
 
     /// Calculates utility for spaceship orientation.
     pub fn utility_orientation(&self) -> f64 {
-        let spaceship_angle = self.spaceship.ori.0;
+        let spaceship_angle = self.spaceship.rigid_body.ori.0;
         let target_angle = self.target_orientation.0;
         let spaceship_dir = [spaceship_angle.cos(), spaceship_angle.sin(), 0.0];
         let target_dir = [target_angle.cos(), target_angle.sin(), 0.0];
         let utility_angle = -angle_between_vectors(target_dir, spaceship_dir).abs();
 
-        let spaceship_axis = self.spaceship.ori.1;
+        let spaceship_axis = self.spaceship.rigid_body.ori.1;
         let target_axis = self.target_orientation.1;
         let utility_axis = -angle_between_vectors(target_axis, spaceship_axis).abs();
 
@@ -174,7 +123,7 @@ pub enum Action {
     /// Acceleration.
     Acc([f64; 3]),
     /// Wrench.
-    Wre(Attitude),
+    Wre(Attitude<f64>),
 }
 
 pub const EARTH: usize = 0;
@@ -197,12 +146,14 @@ fn main() {
             },
         ],
         spaceship: Spaceship {
-            pos: [0.0, 0.0, 0.0],
-            vel: [0.0, 0.0, 0.0],
-            acc: [0.0, 0.0, 0.0],
-            ori: (0.0, [1.0, 0.0, 0.0]),
-            tor: (0.0, [1.0, 0.0, 0.0]),
-            wre: (0.0, [1.0, 0.0, 0.0]),
+            rigid_body: RigidBody {
+                pos: [0.0, 0.0, 0.0],
+                vel: [0.0, 0.0, 0.0],
+                acc: [0.0, 0.0, 0.0],
+                ori: (0.0, [1.0, 0.0, 0.0]),
+                tor: (0.0, [1.0, 0.0, 0.0]),
+                wre: (0.0, [1.0, 0.0, 0.0]),
+            },
             mass: 1.0,
         },
         dt: 0.5,
@@ -230,12 +181,13 @@ fn main() {
     let mut node = &root;
     loop {
         let utility = (ai.utility)(&node.data, &space);
+        let rigid_body = &space.spaceship.rigid_body;
         println!(
             "Pos: {:?}\nVel: {:?}\nOri: {:?}\nTor: {:?}\nUtility: {}\n",
-            space.spaceship.pos,
-            space.spaceship.vel,
-            space.spaceship.ori,
-            space.spaceship.tor,
+            rigid_body.pos,
+            rigid_body.vel,
+            rigid_body.ori,
+            rigid_body.tor,
             utility
         );
         if let Some(i) = ai.update(node, &mut space) {
@@ -309,14 +261,14 @@ fn execute(_: &Spaceship, acc: &Action, space: &mut Space) -> Result<Spaceship, 
     match acc {
         Action::Acc(acc) => {
             // Set spaceship acceleration.
-            space.spaceship.acc = *acc;
+            space.spaceship.rigid_body.acc = *acc;
         }
         Action::Wre(wre) => {
             // Set spaceship wrench.
-            space.spaceship.wre = *wre;
+            space.spaceship.rigid_body.wre = *wre;
         }
     }
-    space.spaceship.update(space.dt);
+    space.spaceship.rigid_body.update(space.dt);
     Ok(old)
 }
 
@@ -332,12 +284,14 @@ fn utility_get_close_to_surface(space: &Space) -> f64 {
 
 /// Computes utility of stopping spaceship.
 fn utility_full_stop(space: &Space) -> f64 {
-    let dist = space.planets[space.target_planet].distance(space.spaceship.pos).abs();
+    let dist = space.planets[space.target_planet]
+        .distance(space.spaceship.rigid_body.pos).abs();
     absoid(0.2, 1.0, dist) * space.utility_full_stop()
 }
 
 fn utility_orientation(space: &Space) -> f64 {
-    let dist = space.planets[space.target_planet].distance(space.spaceship.pos).abs();
+    let dist = space.planets[space.target_planet]
+                .distance(space.spaceship.rigid_body.pos).abs();
     absoid(0.2, 1.0, dist) * space.utility_orientation()
 }
 
